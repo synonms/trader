@@ -36,6 +36,9 @@ namespace Synonms.Trader.Core.Services.Bittrex
             {
                 var content = await response.Content.ReadAsStringAsync();
 
+                _logger.LogInformation("GetBalances succeeded");
+                _logger.LogDebug(content);
+
                 return JsonSerializer.Deserialize<IEnumerable<Balance>>(content);
             }
             else
@@ -43,6 +46,30 @@ namespace Synonms.Trader.Core.Services.Bittrex
                 _logger.LogError($"GetBalances failed with StatusCode {response.StatusCode}");
 
                 return Enumerable.Empty<Balance>();
+            }
+        }
+
+        public async Task<IEnumerable<Order>> GetClosedOrders()
+        {
+            var uri = "https://api.bittrex.com/v3/orders/closed";
+            var request = CreateMessage(HttpMethod.Get, uri, string.Empty);
+            var client = _httpClientFactory.CreateClient();
+            var response = await client.SendAsync(request);
+
+            if (response.IsSuccessStatusCode)
+            {
+                var content = await response.Content.ReadAsStringAsync();
+
+                _logger.LogInformation("GetClosedOrders succeeded");
+                _logger.LogDebug(content);
+
+                return JsonSerializer.Deserialize<IEnumerable<Order>>(content);
+            }
+            else
+            {
+                _logger.LogError($"GetClosedOrders failed with StatusCode {response.StatusCode}");
+
+                return Enumerable.Empty<Order>();
             }
         }
 
