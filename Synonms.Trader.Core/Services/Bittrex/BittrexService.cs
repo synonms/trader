@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Net.Http;
 using System.Security.Cryptography;
 using System.Text;
@@ -22,63 +21,78 @@ namespace Synonms.Trader.Core.Services.Bittrex
         {
             _logger = logger;
             _httpClientFactory = httpClientFactory;
+            _apiKey = apiKey;
             _apiSecret = apiSecret;
         }
 
-        public async Task<IEnumerable<Balance>> GetBalances()
+
+
+        public Task<IEnumerable<Balance>> GetBalances()
         {
-            var uri = "https://api.bittrex.com/v3/balances";
-            var request = CreateMessage(HttpMethod.Get, uri, string.Empty);
-            var client = _httpClientFactory.CreateClient();
-            var response = await client.SendAsync(request);
+            _logger.LogInformation("GET Balances...");
 
-            if (response.IsSuccessStatusCode)
-            {
-                var content = await response.Content.ReadAsStringAsync();
-
-                _logger.LogInformation("GetBalances succeeded");
-                _logger.LogDebug(content);
-
-                return JsonSerializer.Deserialize<IEnumerable<Balance>>(content);
-            }
-            else
-            {
-                _logger.LogError($"GetBalances failed with StatusCode {response.StatusCode}");
-
-                return Enumerable.Empty<Balance>();
-            }
+            return Get<IEnumerable<Balance>>("https://api.bittrex.com/v3/balances");
         }
 
-        public async Task<IEnumerable<Order>> GetClosedOrders()
+        public Task<IEnumerable<Order>> GetClosedOrders()
         {
-            var uri = "https://api.bittrex.com/v3/orders/closed";
+            _logger.LogInformation("GET Closed Orders...");
+
+            return Get<IEnumerable<Order>>("https://api.bittrex.com/v3/orders/closed");
+        }
+
+        public Task<IEnumerable<Market>> GetMarkets()
+        {
+            _logger.LogInformation("GET Markets...");
+
+            return Get<IEnumerable<Market>>("https://api.bittrex.com/v3/markets");
+        }
+
+        public Task<IEnumerable<MarketSummary>> GetMarketSummaries()
+        {
+            _logger.LogInformation("GET Market Summaries...");
+
+            return Get<IEnumerable<MarketSummary>>("https://api.bittrex.com/v3/markets/summaries");
+        }
+
+        public Task<IEnumerable<Ticker>> GetTickers()
+        {
+            _logger.LogInformation("GET Tickers...");
+
+            return Get<IEnumerable<Ticker>>("https://api.bittrex.com/v3/markets/tickers");
+        }
+
+        private async Task<T> Get<T>(string uri)
+        {
             var request = CreateMessage(HttpMethod.Get, uri, string.Empty);
             var client = _httpClientFactory.CreateClient();
             var response = await client.SendAsync(request);
 
+            _logger.LogInformation("Response recieved:");
+
+            var content = await response.Content.ReadAsStringAsync();
+            _logger.LogDebug(content);
+
             if (response.IsSuccessStatusCode)
             {
-                var content = await response.Content.ReadAsStringAsync();
+                _logger.LogInformation("Request succeeded");
 
-                _logger.LogInformation("GetClosedOrders succeeded");
-                _logger.LogDebug(content);
-
-                return JsonSerializer.Deserialize<IEnumerable<Order>>(content);
+                return JsonSerializer.Deserialize<T>(content);
             }
             else
             {
-                _logger.LogError($"GetClosedOrders failed with StatusCode {response.StatusCode}");
+                _logger.LogError($"Request failed with StatusCode {response.StatusCode}");
 
-                return Enumerable.Empty<Order>();
+                return default;
             }
         }
 
         private HttpRequestMessage CreateMessage(HttpMethod method, string requestUri, string content)
         {
-            var apiTimestamp = (DateTime.UtcNow - DateTime.UnixEpoch).TotalMilliseconds.ToString();
+            var apiTimestamp = Math.Round((DateTime.UtcNow - DateTime.UnixEpoch).TotalMilliseconds).ToString();
             var contentHash = HashContent(content);
 
-            var request = new HttpRequestMessage(HttpMethod.Get, requestUri);
+            var request = new HttpRequestMessage(method, requestUri);
             request.Headers.Add("Accept", "application/json");
             request.Headers.Add("Api-Key", _apiKey);
             request.Headers.Add("Api-Timestamp", apiTimestamp);
@@ -114,8 +128,6 @@ namespace Synonms.Trader.Core.Services.Bittrex
 
         private string HashContent(string content)
         {
-            if (string.IsNullOrEmpty(content)) return string.Empty;
-
             byte[] data = Encoding.UTF8.GetBytes(content);
 
             using var sha512 = new SHA512Managed();
